@@ -1,7 +1,10 @@
 <script setup>
-import { computed, onMounted, reactive, watch } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, watch } from 'vue'
 
 const STORAGE_KEY = 'deception-match-v1'
+const MIN_PLAYERS = 2
+const MAX_PLAYERS = 20
+const MIN_WEAPONS_PER_PLAYER = 1
 
 const categories = [
   {
@@ -115,9 +118,13 @@ const totalWeaponsNeeded = computed(
 )
 
 const hasGame = computed(() => state.players.length > 0)
+let saveTimeoutId = null
 
 const syncNamesLength = (nextCount) => {
-  const safeCount = Math.max(2, Math.min(20, Number(nextCount) || 2))
+  const safeCount = Math.max(
+    MIN_PLAYERS,
+    Math.min(MAX_PLAYERS, Number(nextCount) || MIN_PLAYERS),
+  )
   if (state.names.length < safeCount) {
     for (let i = state.names.length + 1; i <= safeCount; i += 1) {
       state.names.push(`Giocatore ${i}`)
@@ -194,8 +201,24 @@ const resetGame = () => {
   formError.message = ''
 }
 
+const normalizeInteger = (value, fallback, min, max) => {
+  const numeric = Number(value)
+  if (!Number.isInteger(numeric)) return fallback
+  return Math.max(min, Math.min(max, numeric))
+}
+
 const saveState = () => {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
+}
+
+const scheduleStateSave = () => {
+  if (saveTimeoutId) {
+    clearTimeout(saveTimeoutId)
+  }
+  saveTimeoutId = setTimeout(() => {
+    saveState()
+    saveTimeoutId = null
+  }, 200)
 }
 
 const loadState = () => {
@@ -204,9 +227,18 @@ const loadState = () => {
 
   try {
     const parsed = JSON.parse(raw)
-    state.playersCount = parsed.playersCount ?? 4
-    state.weaponsPerPlayer = parsed.weaponsPerPlayer ?? 2
-    state.names = Array.isArray(parsed.names) ? parsed.names : []
+    const playersCount = normalizeInteger(parsed.playersCount, 4, MIN_PLAYERS, MAX_PLAYERS)
+    const maxWeaponsByPlayers = Math.floor(weaponPool.length / playersCount)
+    state.playersCount = playersCount
+    state.weaponsPerPlayer = normalizeInteger(
+      parsed.weaponsPerPlayer,
+      2,
+      MIN_WEAPONS_PER_PLAYER,
+      maxWeaponsByPlayers,
+    )
+    state.names = Array.isArray(parsed.names)
+      ? parsed.names.map((name) => String(name ?? ''))
+      : []
     syncNamesLength(state.playersCount)
     state.players = Array.isArray(parsed.players) ? parsed.players : []
   } catch {
@@ -224,13 +256,19 @@ watch(
 watch(
   state,
   () => {
-    saveState()
+    scheduleStateSave()
   },
   { deep: true },
 )
 
 onMounted(() => {
   loadState()
+})
+
+onUnmounted(() => {
+  if (saveTimeoutId) {
+    clearTimeout(saveTimeoutId)
+  }
 })
 </script>
 
@@ -284,6 +322,7 @@ onMounted(() => {
             :key="weapon.id"
             type="button"
             class="weapon-box"
+            :aria-pressed="weapon.disabled"
             :class="[{ disabled: weapon.disabled }, `cat-${weapon.categoryKey}`]"
             :style="{ '--category-color': weapon.color }"
             @click="toggleWeapon(player.id, weapon.id)"
