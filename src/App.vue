@@ -149,8 +149,8 @@ const startGame = () => {
   const playersCount = Number(state.playersCount)
   const weaponsPerPlayer = Number(state.weaponsPerPlayer)
 
-  if (!Number.isInteger(playersCount) || playersCount < 2 || playersCount > 20) {
-    formError.message = 'Il numero di giocatori deve essere tra 2 e 20.'
+  if (!Number.isInteger(playersCount) || playersCount < MIN_PLAYERS || playersCount > MAX_PLAYERS) {
+    formError.message = `Il numero di giocatori deve essere tra ${MIN_PLAYERS} e ${MAX_PLAYERS}.`
     return
   }
 
@@ -208,7 +208,11 @@ const normalizeInteger = (value, fallback, min, max) => {
 }
 
 const saveState = () => {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
+  } catch {
+    // Ignore persistence failures (quota/private mode).
+  }
 }
 
 const scheduleStateSave = () => {
