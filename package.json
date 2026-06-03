@@ -9,7 +9,9 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "ci:check": "bash ./scripts/ci-check.sh",
+    "publish:guard": "bash ./scripts/publish-guard.sh"
   },
   "dependencies": {
     "vue": "^3.5.34"
